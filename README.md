@@ -10,9 +10,9 @@
 - Checking the Target
     - if it is a regression problem then we analyze the distribution of the target and check whether there is necessary preprocessing based on this. If it is a classification problem We need to check target imbalance.
     - for regression we can use the log-transformation of label
-        - Logarithm function increases the spacing between small numbers and reduces the spacing between large numbers. When certain features are dense with values in small values, by increasing these intervals, our models increase the intervals for small values, and we can improve the performance of the model when training and testing using these values.
+        - Logarithm function increases the spacing between small numbers and reduces the spacing between large numbers. When certain features are dense with values in small values, by increasing these intervals, our models increase the intervals for small values, and we can improve the performance of the model when training and testing using these values.   
 - EDA for numerical features
-    - Separate the feature like numerical or categorical or date-time or any other
+    - Separate the feature like discrete or continuos or date-time or any other
     - inspect discrete and continuos features separately
     - detecting the outliers
     - adding New Derived Features using Numerical Feature.
