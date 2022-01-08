@@ -36,5 +36,3 @@
     - Encoding Target using Log Scaling
 
 Ref: https://www.kaggle.com/ohseokkim/house-price-all-about-house-price#Doing-EDA-for-Categorical-Features
-    
-    
