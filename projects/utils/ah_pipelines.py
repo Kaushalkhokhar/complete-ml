@@ -1,40 +1,39 @@
-from _typeshed import StrPath
 import numpy as np
 import pandas as pd
-from pandas.io.pytables import dropna_doc
 from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.preprocessing import StandardScaler
 
-
-"""
-"""
-
-cont_attrs = []
-cat_nom_attrs = []
-cat_ord_attrs = []
-
-
-num_imputer = SimpleImputer(strategy="median")
-
 class LogNormalTransformer(BaseEstimator, TransformerMixin):
 
-    def __init__(self, attr_list): # no *args **kwargs
+    def __init__(self, attr_list=None): # no *args **kwargs
         self.attr_list = attr_list
 
     def fit(self, X, y=None):
         return self
 
     def transform(self, X, y=None):
-        for attr in self.attr_list:
-            X[attr] = np.log1p(X[attr])
-        return np.c_[X]
+        # for attr in self.attr_list:
+        #     X[attr] = np.log1p(X[attr])
+        return np.log1p(X)
 
-class CatNomMissingImputer(BaseEstimator, TransformerMixin):
+class AddingContFeatures(BaseEstimator, TransformerMixin):
 
-    def __init__(self, attr_list, impute_with): # no *args **kwargs
+    def __init__(self): # no *args **kwargs
+        pass
+    
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X, y=None):
+        X["OverallFlrSF"] = X["1stFlrSF"] + X["2ndFlrSF"]
+        return X
+
+class CatNomImputer(BaseEstimator, TransformerMixin):
+
+    def __init__(self,  impute_with, attr_list=None,): # no *args **kwargs
         self.attr_list = attr_list
         self.impute_with = impute_with
 
@@ -42,12 +41,12 @@ class CatNomMissingImputer(BaseEstimator, TransformerMixin):
         return self
 
     def transform(self, X, y=None):
-        for attr in self.attr_list:
-            X[attr] = X[attr].fillna(self.impute_with)
-        return np.c_[X]
+        # for attr in self.attr_list:
+        #     X[attr] = X[attr].fillna(self.impute_with)
+        return X.fillna(self.impute_with)
 
 class CatNomEncoder(BaseEstimator, TransformerMixin):
-    def __init__(self, attr_list, drop_first=True): # no *args **kwargs
+    def __init__(self, attr_list=None, drop_first=True): # no *args **kwargs
         self.attr_list = attr_list
         self.drop_first = drop_first
 
@@ -55,21 +54,21 @@ class CatNomEncoder(BaseEstimator, TransformerMixin):
         return self
 
     def transform(self, X, y=None):
-        X1 = X[[attr for attr in X.columns if attr not in self.attr_list]]
-        X2 = pd.get_dummies(X[self.attr_list], drop_first=self.drop_first)
-        return np.c_[X1, X2]
+        # X1 = X[[attr for attr in X.columns if attr not in self.attr_list]]
+        # X2 = pd.get_dummies(X[self.attr_list], drop_first=self.drop_first)
+        return pd.get_dummies(X, drop_first=self.drop_first)
 
 
-class CatOrdMissingImputer(BaseEstimator, TransformerMixin):
+class CatOrdImputer(BaseEstimator, TransformerMixin):
 
-    def __init__(self, attr_list):
+    def __init__(self, attr_list=None):
         self.attr_list = attr_list
     
     def fit(self, X, y=None):
         return self
 
     def transform(self, X, y=None):
-        for attr in self.attr_list:
+        for attr in X.columns:
             X[attr] = X[attr].fillna(X[attr].mode()[0])
         return X
 
@@ -127,7 +126,7 @@ class CatOrdEncoder(BaseEstimator, TransformerMixin):
         X['GarageQual'] = X['GarageQual'].replace(quality_label)
         X['PoolQC'] = X['PoolQC'].replace(quality_label)
 
-        return np.c_[X]
+        return X
 
     def HouseStyleToInt(self, x):
         if(x=='1.5Unf'):
@@ -193,16 +192,19 @@ class CatOrdEncoder(BaseEstimator, TransformerMixin):
 
 
 
-dis_pipeline = [("imputer", SimpleImputer(strategy="median")),
+dis_pipeline = [("dis_imputer", SimpleImputer(strategy="median")),
                 ("std_scale", StandardScaler())]
 
-cont_pipeline = [("imputer", SimpleImputer(strategy="median")),
-                ("log_normal", LogNormalTransformer(cont_attrs))]
+cont_pipeline = [("cont_imputer", SimpleImputer(strategy="median")),
+                ("add_feature", AddingContFeatures()),
+                ("log_normal", LogNormalTransformer())]
 
 date_time_pipeline = [("std_scaler"), StandardScaler()]
 
-cat_nom_pipeline = [("nom_imputer", CatNomMissingImputer(cat_nom_attrs, "missing")),
-                    ("nom_encoding", CatNomEncoder(cat_nom_attrs))]
+cat_nom_pipeline = [("nom_imputer", CatNomImputer("missing")),
+                    ("nom_encoding", CatNomEncoder())]
 
-cat_ord_pipeline = ["ord_imputer", CatOrdMissingImputer(cat_ord_attrs), 
+cat_ord_pipeline = ["ord_imputer", CatOrdImputer(), 
                     "ord_encoding", CatOrdEncoder()]
+
+label_pipeline = [("log_normal", LogNormalTransformer())]
