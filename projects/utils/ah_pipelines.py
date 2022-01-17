@@ -28,8 +28,7 @@ class AddingContFeatures(BaseEstimator, TransformerMixin):
         return self
 
     def transform(self, X, y=None):
-        X["OverallFlrSF"] = X["1stFlrSF"] + X["2ndFlrSF"]
-        return X
+        return np.c_[X, X[:, 7] + X[:, 8]]
 
 class CatNomImputer(BaseEstimator, TransformerMixin):
 
@@ -99,7 +98,7 @@ class CatOrdEncoder(BaseEstimator, TransformerMixin):
                                                 'PosA':3,
                                                 'PosN':3})
         X['HouseStyle'] = X['HouseStyle'].apply(self.HouseStyleToInt)
-        X['MasVnrType'] = X['MasVnrType'].apply(self.fit_transformMasVnrTypeToInt)
+        X['MasVnrType'] = X['MasVnrType'].apply(self.MasVnrTypeToInt)
         X['Foundation'] = X['Foundation'].replace({'Slab':1,'BrkTil':2,'Stone':2,'CBlock':3,'Wood':4,'PConc':5})
         X['GarageType'] = X['GarageType'].replace({'CarPort':1,'Basment':2,'Detchd':2,'Attchd':3,'2Types':3,'BuiltIn':4})
         X['GarageFinish'] = X['GarageFinish'].replace({'Unf':1,'RFn':2,'Fin':3})
@@ -192,19 +191,37 @@ class CatOrdEncoder(BaseEstimator, TransformerMixin):
 
 
 
-dis_pipeline = [("dis_imputer", SimpleImputer(strategy="median")),
-                ("std_scale", StandardScaler())]
+dis_pipeline = Pipeline([("dis_imputer", SimpleImputer(strategy="median")),
+                ("std_scale", StandardScaler())])
 
-cont_pipeline = [("cont_imputer", SimpleImputer(strategy="median")),
+cont_pipeline = Pipeline([("cont_imputer", SimpleImputer(strategy="median")),
                 ("add_feature", AddingContFeatures()),
-                ("log_normal", LogNormalTransformer())]
+                ("log_normal", LogNormalTransformer())])
 
 date_time_pipeline = [("std_scaler"), StandardScaler()]
 
-cat_nom_pipeline = [("nom_imputer", CatNomImputer("missing")),
-                    ("nom_encoding", CatNomEncoder())]
+cat_nom_pipeline = Pipeline([("nom_imputer", CatNomImputer("missing")),
+                    ("nom_encoding", CatNomEncoder())])
 
-cat_ord_pipeline = ["ord_imputer", CatOrdImputer(), 
-                    "ord_encoding", CatOrdEncoder()]
+cat_ord_pipeline = Pipeline([("ord_imputer", CatOrdImputer()), 
+                    ("ord_encoding", CatOrdEncoder())])
 
 label_pipeline = [("log_normal", LogNormalTransformer())]
+
+
+dis_attrs = []
+cont_attrs = []
+date_time_attrs = []
+cat_nom_attrs = []
+cat_ord_attrs = []
+labels = []
+
+full_pipeline = ColumnTransformer([("dis_pipeline", dis_pipeline, dis_attrs),
+                                  ("cont_pipeline", cont_pipeline, cont_attrs),
+                                  ("date_time_pipeline", StandardScaler(), date_time_attrs),
+                                  ("cat_nom_pipeline", cat_nom_pipeline, cat_nom_attrs),
+                                  ("cat_ord_pipeline", cat_ord_pipeline, cat_ord_attrs)], remainder="drop")
+
+df2 = "dataframe object"
+df2_prepared = full_pipeline.fit_transform(df2)
+df2_labels = df2[labels]
