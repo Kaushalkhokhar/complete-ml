@@ -3,3 +3,4 @@ env/
 projects/datasets/
 projects/models/
 projects/logs/
+*.h5
