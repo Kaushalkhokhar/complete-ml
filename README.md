@@ -36,3 +36,19 @@
     - Encoding Target using Log Scaling
 
 Ref: https://www.kaggle.com/ohseokkim/house-price-all-about-house-price#Doing-EDA-for-Categorical-Features
+
+## CNN
+- Convolved image size
+    - If original iamge is of n * n and filter/kernel is of size f * f
+    - Without padding and stride is 1
+        - Convolved image will be of n - f + 1 * n - f + 1
+    - With padding and stride is 1
+        - Convolved image will be of n + 2p - f + 1 * n + 2p - f + 1
+        - Where p is padding size  
+        - To make output same as input n + 2p -f + 1 = n, we get  p = (f - 1)/2
+
+    - With padding as p and strides as s
+        - Convolved image will be of (n + 2p - f)/s + 1 * (n + 2p - f)/s + 1
+
+    - With padding as p, strides as s ans numbers of filter as n(each is responsible for different features like vertical endge, horizontal edge etc.)
+        - Convolved volume will be of (n + 2p - f)/s + 1 * (n + 2p - f)/s + 1 * n
