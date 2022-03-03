@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from skimage import io
 import tensorflow as tf
 from tensorflow import keras
+import ktrain
 
 print("Number of available GPU's: ", len(tf.config.experimental.list_physical_devices("GPU")))
 
@@ -279,6 +280,135 @@ def run_model():
     model, callbacks = mini_resnet_9cl()
 
     history = model.fit(train_set, epochs=25, validation_data=valid_set, callbacks=callbacks)
+
+K = keras.backend
+
+class OneCycleSchedulerNadam(keras.callbacks.Callback):
+    def __init__(self, iterations, 
+                 max_lrate, 
+                 start_lrate=None,
+                 last_iterations=None, 
+                 last_lrate=None,
+                 max_b1rate=0.95,
+                 min_b1rate=0.85,
+                 max_b2rate=0.9995,
+                 min_b2rate=0.9985):
+        
+        self.iterations = iterations
+        self.last_iterations = last_iterations or iterations // 10 + 1
+        self.half_iteration = (iterations - self.last_iterations) // 2
+        
+        self.max_lrate = max_lrate
+        self.start_lrate = start_lrate or max_lrate / 10
+        self.last_lrate = last_lrate or self.start_lrate / 1000
+        
+        self.max_b1rate = max_b1rate
+        self.min_b1rate = min_b1rate
+        self.last_b1rate = max_b1rate
+        
+        self.max_b2rate = max_b2rate
+        self.min_b2rate = min_b2rate
+        self.last_b2rate = max_b2rate
+
+        self.iteration = 0
+        
+        self.rate = []
+        self.b1 = []
+        self.b2 = []
+
+        self.loss = []
+        self.val_loss = []
+        self.accuracy = []
+        self.val_accuracy = []
+    
+    def _interpolate(self, iter1, iter2, lrate1, lrate2):
+        return ((lrate2 - lrate1) * (self.iteration - iter1)
+                / (iter2 - iter1) + lrate1)
+    
+    def on_batch_begin(self, batch, logs):
+        if self.iteration < self.half_iteration:
+            rate = self._interpolate(0, self.half_iteration, self.start_lrate, self.max_lrate)
+            b1 = self._interpolate(0, self.half_iteration, self.max_b1rate, self.min_b1rate)
+            b2 = self._interpolate(0, self.half_iteration, self.max_b2rate, self.min_b2rate)
+        elif self.iteration < 2 * self.half_iteration:
+            rate = self._interpolate(self.half_iteration, 2 * self.half_iteration, self.max_lrate, self.start_lrate)
+            b1 = self._interpolate(self.half_iteration, 2 * self.half_iteration, self.min_b1rate, self.max_b1rate)
+            b2 = self._interpolate(self.half_iteration, 2 * self.half_iteration, self.min_b2rate, self.max_b2rate)
+        else:
+            rate = self._interpolate(2 * self.half_iteration, self.iterations, self.start_lrate, self.last_lrate)
+            b1 = self.last_b1rate
+            b2 = self.last_b2rate
+            
+        self.iteration += 1
+        K.set_value(self.model.optimizer.learning_rate, rate)
+        K.set_value(self.model.optimizer.beta_1, b1)
+        K.set_value(self.model.optimizer.beta_2, b2)
+        
+    def on_batch_end(self, batch, logs):
+        self.rate.append(K.get_value(self.model.optimizer.learning_rate))
+        self.b1.append(K.get_value(self.model.optimizer.beta_1))
+        self.b2.append(K.get_value(self.model.optimizer.beta_2))
+
+        self.loss.append(logs["loss"])
+        self.accuracy.append(logs["sparse_categorical_accuracy"])
+
+class OneCycleSchedulerSGD(keras.callbacks.Callback):
+    def __init__(self, iterations, 
+                 max_lrate, 
+                 start_lrate=None,
+                 last_iterations=None, 
+                 last_lrate=None,
+                 max_momentum=0.95,
+                 min_momentum=0.85):
+        
+        self.iterations = iterations
+        self.last_iterations = last_iterations or iterations // 10 + 1
+        self.half_iteration = (iterations - self.last_iterations) // 2
+        
+        self.max_lrate = max_lrate
+        self.start_lrate = start_lrate or max_lrate / 10
+        self.last_lrate = last_lrate or self.start_lrate / 1000
+        
+        self.max_momentum = max_momentum
+        self.min_momentum = min_momentum
+        self.last_momentum = max_momentum
+        
+        self.iteration = 0
+        
+        self.rate = []
+        self.momentum = []
+
+        self.loss = []
+        self.val_loss = []
+        self.accuracy = []
+        self.val_accuracy = []
+    
+    def _interpolate(self, iter1, iter2, lrate1, lrate2):
+        return ((lrate2 - lrate1) * (self.iteration - iter1)
+                / (iter2 - iter1) + lrate1)
+    
+    def on_batch_begin(self, batch, logs):
+        if self.iteration < self.half_iteration:
+            rate = self._interpolate(0, self.half_iteration, self.start_lrate, self.max_lrate)
+            momentum = self._interpolate(0, self.half_iteration, self.max_momentum, self.min_momentum)
+        elif self.iteration < 2 * self.half_iteration:
+            rate = self._interpolate(self.half_iteration, 2 * self.half_iteration, self.max_lrate, self.start_lrate)
+            momentum = self._interpolate(self.half_iteration, 2 * self.half_iteration, self.min_momentum, self.max_momentum)
+        else:
+            rate = self._interpolate(2 * self.half_iteration, self.iterations, self.start_lrate, self.last_lrate)
+            momentum = self.last_momentum
+            
+        self.iteration += 1
+        K.set_value(self.model.optimizer.learning_rate, rate)
+        K.set_value(self.model.optimizer.beta_1, momentum)
+        
+    def on_batch_end(self, batch, logs):
+        self.rate.append(K.get_value(self.model.optimizer.learning_rate))
+        self.momentum.append(K.get_value(self.model.optimizer.beta_1))
+
+        self.loss.append(logs["loss"])
+        self.accuracy.append(logs["sparse_categorical_accuracy"])
+
 
 if __name__ == "__main__":
     run_model()
