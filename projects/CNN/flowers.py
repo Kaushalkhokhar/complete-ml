@@ -410,5 +410,124 @@ class OneCycleSchedulerSGD(keras.callbacks.Callback):
         self.accuracy.append(logs["sparse_categorical_accuracy"])
 
 
+class InceptionLayer(keras.layers.Layer):
+    
+    def __init__(self, fms, **kwargs):
+        super().__init__(**kwargs)
+        self.bn1_cnn = keras.layers.Conv2D(filters=fms[0],
+                                           kernel_size=1, 
+                                           strides=1, 
+                                           padding="same", 
+                                           use_bias=False,
+                                           activation="relu")
+        self.bn2_cnn = keras.layers.Conv2D(filters=fms[3],
+                                           kernel_size=1, 
+                                           strides=1, 
+                                           padding="same", 
+                                           use_bias=False,
+                                           activation="relu")
+        self.bn3_cnn = keras.layers.Conv2D(filters=fms[4],
+                                           kernel_size=1, 
+                                           strides=1, 
+                                           padding="same", 
+                                           use_bias=False,
+                                           activation="relu")
+        self.bn4_cnn = keras.layers.Conv2D(filters=fms[5],
+                                           kernel_size=1, 
+                                           strides=1, 
+                                           padding="same", 
+                                           use_bias=False,
+                                           activation="relu")
+        self.cnn1 = keras.layers.Conv2D(filters=fms[1],
+                                        kernel_size=3, 
+                                        strides=1, 
+                                        padding="same", 
+                                        use_bias=False,
+                                        activation="relu")
+        self.cnn2 = keras.layers.Conv2D(filters=fms[0],
+                                        kernel_size=5, 
+                                        strides=1, 
+                                        padding="same", 
+                                        use_bias=False,
+                                        activation="relu")
+        self.mp = keras.layers.MaxPool2D(pool_size=3, 
+                                         strides=1, 
+                                         padding="same")
+    
+    def get_config(self):
+        config = super().get_config()
+        config.update({"fms": self.fms})
+        return config
+
+    def call(self, inputs):
+        z1 = self.bn1_cnn(inputs)
+        z2 = self.cnn1(self.bn3_cnn(inputs))
+        z3 = self.cnn2(self.bn4_cnn(inputs))
+        z4 = self.bn2_cnn(self.mp(inputs))
+        
+        return tf.concat([z1, z2, z3, z4], axis=3)
+
+def googlenet_mini():
+    """
+    name ecodes the model architecture
+    architecture:
+        first            CNN ---> MP ---> LRN ---> Repeated twice
+        second           IL ---> IL ---> MP ---> IL ---> IL
+        third            GAP
+        fourth            Dense ---> including dropout
+    """
+
+    model = keras.models.Sequential()
+    model.add(keras.layers.Conv2D(64, 
+                                  kernel_size=5, 
+                                  strides=2,  
+                                  use_bias=False,
+                                  padding="same", 
+                                  input_shape=[dims[0], dims[0], channels], 
+                                  ))
+    model.add(keras.layers.Activation("relu"))
+    model.add(keras.layers.MaxPool2D(pool_size=3, 
+                                     strides=2,
+                                     padding="same"))
+    
+    model.add(keras.layers.Lambda(lambda inputs: tf.nn.local_response_normalization(inputs)))
+    
+    model.add(keras.layers.Conv2D(64, 
+                                  kernel_size=1, 
+                                  strides=1,  
+                                  use_bias=False,
+                                  padding="same", 
+                                  ))
+    model.add(keras.layers.Activation("relu"))
+    model.add(keras.layers.Conv2D(192, 
+                                  kernel_size=3, 
+                                  strides=1,  
+                                  use_bias=False,
+                                  padding="same", 
+                                  ))
+    model.add(keras.layers.Activation("relu"))
+    
+    model.add(keras.layers.Lambda(lambda inputs: tf.nn.local_response_normalization(inputs)))
+
+    model.add(keras.layers.MaxPool2D(pool_size=3, 
+                                     strides=2,
+                                     padding="same"))
+
+
+    model.add(InceptionLayer([64, 128, 32, 32, 96, 16]))
+    model.add(InceptionLayer([128, 192, 96, 94, 128, 32]))
+    model.add(keras.layers.MaxPool2D(pool_size=3, 
+                                     strides=2,
+                                     padding="same"))
+    model.add(InceptionLayer([192, 208, 48, 94, 96, 16]))
+    model.add(InceptionLayer([160, 224, 64, 64, 112, 24]))
+    model.add(keras.layers.GlobalAveragePooling2D())
+    model.add(keras.layers.Dropout(0.1))
+    
+    model.add(keras.layers.Dense(5, activation="softmax"))
+    
+    return model
+
+
 if __name__ == "__main__":
     run_model()
