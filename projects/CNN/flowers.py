@@ -401,11 +401,23 @@ class OneCycleSchedulerSGD(keras.callbacks.Callback):
         self.iteration += 1
         K.set_value(self.model.optimizer.learning_rate, rate)
         K.set_value(self.model.optimizer.beta_1, momentum)
+
+class ExponentialScheduler(keras.callbacks.Callback):
+    def __init__(self, steps):
         
+        self.steps = steps 
+        
+        self.rate = []
+        self.loss = []
+        self.accuracy = []
+    
+    def on_batch_begin(self, batch, logs):
+        lr = K.get_value(self.model.optimizer.learning_rate)
+        K.set_value(self.model.optimizer.learning_rate, lr * 0.1**(1 / self.steps))
+        self.iterations += 1 
+
     def on_batch_end(self, batch, logs):
         self.rate.append(K.get_value(self.model.optimizer.learning_rate))
-        self.momentum.append(K.get_value(self.model.optimizer.beta_1))
-
         self.loss.append(logs["loss"])
         self.accuracy.append(logs["sparse_categorical_accuracy"])
 
